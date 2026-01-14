@@ -11,7 +11,7 @@ import (
 
     "github.com/gin-gonic/gin"
     "github.com/guidiguidi/RateMonitorBC/internal/bestchange"
-    "github.com/guidiguidi/RateMonitorBC/internal/config"
+    "github.com/guidiguidi/RateMonitorBC/config"
     "github.com/guidiguidi/RateMonitorBC/internal/httpapi"
 )
 

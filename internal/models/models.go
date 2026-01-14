@@ -1,5 +1,14 @@
 package models
 
+// Currency описывает валюту из /currencies/ru.
+type Currency struct {
+    ID       int    `json:"id"`
+    Name     string `json:"name"`
+    Code     string `json:"code"`
+    Crypto   bool   `json:"crypto"`
+    Rank     int    `json:"rank"`
+}
+
 // Rate описывает один вариант обмена из /v2/{apiKey}/rates/{from}-{to}.
 type Rate struct {
     Changer  int               `json:"changer"`
@@ -22,7 +31,7 @@ type BestRateRequest struct {
     FromID int      `json:"from_id"`
     ToID   int      `json:"to_id"`
     Amount float64  `json:"amount"`
-    Marks  []string `json:"marks"` // какие метки обязательны (можно пустой список)
+    Marks  []string `json:"marks"`
 }
 
 // BestRateResponse — выход из твоего API.

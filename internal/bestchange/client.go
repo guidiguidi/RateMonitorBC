@@ -7,7 +7,7 @@ import (
     "net/http"
     "strconv"
 
-    "github.com/guidiguidi/bestchange/internal/models"
+    "github.com/guidiguidi/RateMonitorBC/internal/models"
 )
 
 type Client struct {

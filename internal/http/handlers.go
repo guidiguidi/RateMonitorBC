@@ -5,8 +5,8 @@ import (
     "net/http"
 
     "github.com/gin-gonic/gin"
-    "github.com/guidiguidi/bestchange/internal/bestchange"
-    "github.com/guidiguidi/bestchange/internal/models"
+    "github.com/guidiguidi/RateMonitorBC/internal/bestchange"
+    "github.com/guidiguidi/RateMonitorBC/internal/models"
 )
 
 type Handler struct {

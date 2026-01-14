@@ -9,22 +9,7 @@ import (
 
 const CurrenciesFile = "data/currencies.json"  
 
-type Currency struct {
-    ID       int     `json:"id"`
-    Name     string  `json:"name"`   
-    URLName  string  `json:"urlname"`
-    ViewName string  `json:"viewname"`
-    Code     string  `json:"code"`     
-    Crypto   bool    `json:"crypto"`
-    Cash     bool    `json:"cash"`
-    PS       int     `json:"ps"`
-    Group    int     `json:"group"`
-    DefAmt   int     `json:"defamt"`
-    BigAmt   int     `json:"bigamt"`
-    Pos      int     `json:"pos"`
-    Rank     int     `json:"rank"`
-    Keywords string  `json:"keywords"`
-}
+
 
 func LoadJSONFromFile(filePath string, v interface{}) error {
     file, err := os.Open(filePath)

@@ -111,62 +111,61 @@ function createResultCard(rate, fromCode, toCode, amount) {
 }
 
 // Fetch and display results
-async function searchRates(e) {
-    e.preventDefault();
+        async function searchRates(e) {
+            e.preventDefault();
 
-    const fromId = elements.fromCurrency.value;
-    const toId = elements.toCurrency.value;
-    const amount = elements.amount.value;
-    const marks = getSelectedMarks();
+            const fromId = elements.fromCurrency.value;
+            const toId = elements.toCurrency.value;
+            const amount = elements.amount.value;
+            const marks = getSelectedMarks();
 
-    if (!fromId || !toId) {
-        showError('Please select both currencies');
-        return;
-    }
+            if (!fromId || !toId) {
+                showError('Please select both currencies');
+                return;
+            }
 
-    if (amount <= 0) {
-        showError('Amount must be greater than 0');
-        return;
-    }
+            if (amount <= 0) {
+                showError('Amount must be greater than 0');
+                return;
+            }
 
-    elements.loading.classList.add('show');
-    elements.resultsSection.classList.remove('show');
-    elements.error.classList.remove('show');
-    elements.resultsList.innerHTML = ''; // Clear previous results
+            elements.loading.classList.add('show');
+            elements.resultsSection.classList.remove('show');
+            elements.error.classList.remove('show');
+            elements.resultsList.innerHTML = ''; // Clear previous results
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/v1/best-rate`, { // Updated endpoint
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from_id: parseInt(fromId), to_id: parseInt(toId), amount: parseFloat(amount), marks })
-        });
+            try {
+                const fromCurr = DEMO_CURRENCIES.find(c => c.id == fromId);
+                const toCurr = DEMO_CURRENCIES.find(c => c.id == toId);
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                const response = await fetch(`${API_BASE_URL}/v1/best-rate`, { // Updated endpoint
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ from_code: fromCurr.code, to_code: toCurr.code, amount: parseFloat(amount), marks })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(result);
+
+                if (result.best_rate && fromCurr && toCurr) {
+                    elements.resultsList.innerHTML = createResultCard(result.best_rate, fromCurr.code, toCurr.code, amount);
+                    elements.resultsSection.classList.add('show');
+                    showSuccess(`Found best rate for ${fromCurr.code} → ${toCurr.code}`);
+                } else {
+                    showError('No suitable rates found.');
+                }
+
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            } finally {
+                elements.loading.classList.remove('show');
+            }
         }
-
-        const result = await response.json();
-        console.log(result);
-
-        const fromCurr = DEMO_CURRENCIES.find(c => c.id == fromId);
-        const toCurr = DEMO_CURRENCIES.find(c => c.id == toId);
-
-        if (result.best_rate && fromCurr && toCurr) {
-            elements.resultsList.innerHTML = createResultCard(result.best_rate, fromCurr.code, toCurr.code, amount);
-            elements.resultsSection.classList.add('show');
-            showSuccess(`Found best rate for ${fromCurr.code} → ${toCurr.code}`);
-        } else {
-            showError('No suitable rates found.');
-        }
-
-    } catch (err) {
-        showError(`Error: ${err.message}`);
-    } finally {
-        elements.loading.classList.remove('show');
-    }
-}
-
 // Event listeners
 elements.form.addEventListener('submit', searchRates);
 

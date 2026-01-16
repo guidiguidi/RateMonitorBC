@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	fromID int
-	toID   int
+	fromCode string
+	toCode   string
 	amount float64
 	marks  []string
 )
@@ -53,8 +53,8 @@ func main() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	bestCmd.Flags().IntVar(&fromID, "from", 0, "From currency ID")
-	bestCmd.Flags().IntVar(&toID, "to", 0, "To currency ID")
+	bestCmd.Flags().StringVar(&fromCode, "from", "", "From currency code")
+	bestCmd.Flags().StringVar(&toCode, "to", "", "To currency code")
 	bestCmd.Flags().Float64Var(&amount, "amount", 0, "Amount to exchange")
 	bestCmd.Flags().StringSliceVar(&marks, "marks", []string{}, "Required marks (comma-separated)")
 
@@ -76,11 +76,14 @@ func findBestRate(cmd *cobra.Command, args []string) {
 	cfg := config.Cfg
 
 	client := bestchange.NewClient(cfg.BestChange.APIKey, cfg.BestChange.BaseURL, cfg.BestChange.RateLimit)
-	service := bestchange.NewService(client)
+	service, err := bestchange.NewService(client, "data/currencies.json")
+	if err != nil {
+		log.Fatalf("Failed to create service: %v", err)
+	}
 
 	req := &models.BestRateRequest{
-		FromID: fromID,
-		ToID:   toID,
+		FromCode: fromCode,
+		ToCode:   toCode,
 		Amount: amount,
 		Marks:  marks,
 	}
@@ -103,7 +106,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	cfg := config.Cfg
 
 	bcClient := bestchange.NewClient(cfg.BestChange.APIKey, cfg.BestChange.BaseURL, cfg.BestChange.RateLimit)
-	bcService := bestchange.NewService(bcClient)
+	bcService, err := bestchange.NewService(bcClient, "data/currencies.json")
+	if err != nil {
+		log.Fatalf("Failed to create service: %v", err)
+	}
 	h := httpapi.NewHandler(bcService)
 
 	r := gin.Default()

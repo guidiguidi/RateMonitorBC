@@ -27,10 +27,10 @@ type RatesResponse struct {
 
 // BestRateRequest - входные параметры API сервиса.
 type BestRateRequest struct {
-	FromID int      `json:"from_id" binding:"required"`
-	ToID   int      `json:"to_id" binding:"required"`
-	Amount float64  `json:"amount" binding:"required"`
-	Marks  []string `json:"marks"`
+	FromCode string   `json:"from_code" binding:"required"`
+	ToCode   string   `json:"to_code" binding:"required"`
+	Amount   float64  `json:"amount" binding:"required"`
+	Marks    []string `json:"marks"`
 }
 
 // BestRateResponse - результат с лучшим курсом.

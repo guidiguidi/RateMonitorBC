@@ -6,28 +6,48 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/guidiguidi/RateMonitorBC/internal/collectors"
 	"github.com/guidiguidi/RateMonitorBC/internal/models"
 )
 
 var (
-	ErrNoSuitableRates = fmt.Errorf("no suitable rates found")
+	ErrNoSuitableRates   = fmt.Errorf("no suitable rates found")
+	ErrCurrencyNotFound  = fmt.Errorf("currency not found")
 )
 
 type Service struct {
-	client *Client
+	client     *Client
+	currencies []models.Currency
 }
 
-func NewService(client *Client) *Service {
-	return &Service{client: client}
+func NewService(client *Client, currencyFile string) (*Service, error) {
+	currencies, err := collectors.GetCurrencies(currencyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not load currencies: %w", err)
+	}
+	return &Service{
+		client:     client,
+		currencies: currencies,
+	}, nil
 }
 
 func (s *Service) GetBestRate(ctx context.Context, req *models.BestRateRequest) (*models.BestRateResponse, error) {
-	ratesResponse, err := s.client.GetRates(ctx, req.FromID, req.ToID)
+	fromCurrency := collectors.FindByCode(s.currencies, req.FromCode)
+	if fromCurrency == nil {
+		return nil, fmt.Errorf("%w: %s", ErrCurrencyNotFound, req.FromCode)
+	}
+
+	toCurrency := collectors.FindByCode(s.currencies, req.ToCode)
+	if toCurrency == nil {
+		return nil, fmt.Errorf("%w: %s", ErrCurrencyNotFound, req.ToCode)
+	}
+
+	ratesResponse, err := s.client.GetRates(ctx, fromCurrency.ID, toCurrency.ID)
 	if err != nil {
 		return nil, fmt.Errorf("get rates: %w", err)
 	}
 
-	key := fmt.Sprintf("%d-%d", req.FromID, req.ToID)
+	key := fmt.Sprintf("%d-%d", fromCurrency.ID, toCurrency.ID)
 	rates, ok := ratesResponse.Rates[key]
 	if !ok || len(rates) == 0 {
 		return nil, ErrNoSuitableRates
@@ -47,8 +67,8 @@ func (s *Service) GetBestRate(ctx context.Context, req *models.BestRateRequest) 
 	bestRate.ToAmount = toAmount
 
 	return &models.BestRateResponse{
-		FromID:   req.FromID,
-		ToID:     req.ToID,
+		FromID:   fromCurrency.ID,
+		ToID:     toCurrency.ID,
 		Amount:   req.Amount,
 		Marks:    req.Marks,
 		BestRate: bestRate,

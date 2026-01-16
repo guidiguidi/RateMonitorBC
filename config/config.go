@@ -13,7 +13,9 @@ type Config struct {
         WriteTimeout int    `mapstructure:"write_timeout"`
     } `mapstructure:"server"`
     BestChange struct {
-        APIKey string `mapstructure:"api_key"`
+        APIKey    string `mapstructure:"api_key"`
+        BaseURL   string `mapstructure:"base_url"`
+        RateLimit int    `mapstructure:"rate_limit"`
     } `mapstructure:"bestchange"`
 }
 

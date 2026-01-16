@@ -4,4 +4,6 @@ server:
   write_timeout: 10
 
 bestchange:
-  api_key: "c259447e0c08e1cb0c494dcd34981291" 
+  api_key: "c259447e0c08e1cb0c494dcd34981291"
+  base_url: "https://bestchange.app/v2"
+  rate_limit: 1

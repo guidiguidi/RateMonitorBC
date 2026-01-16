@@ -1,6 +1,7 @@
-package handlers
+package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,35 +10,29 @@ import (
 )
 
 type Handler struct {
-	bc *bestchange.Client
+	service *bestchange.Service
 }
 
-func NewHandler(bc *bestchange.Client) *Handler {
-	return &Handler{bc: bc}
+func NewHandler(service *bestchange.Service) *Handler {
+	return &Handler{service: service}
 }
 
-func (h *Handler) GetBestExchange(c *gin.Context) {
+func (h *Handler) GetBestRate(c *gin.Context) {
 	var req models.BestRateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	best, err := h.bc.GetBestRateWithFilters(
-		c.Request.Context(),
-		req.FromID,
-		req.ToID,
-		req.Amount,
-		req.Marks,
-	)
+	bestRate, err := h.service.GetBestRate(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if errors.Is(err, bestchange.ErrNoSuitableRates) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
 
-	resp := models.BestRateResponse{
-		Best:   *best,
-		Source: "bestchange",
-	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, bestRate)
 }

@@ -4,11 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/guidiguidi/RateMonitorBC/config"
 	"github.com/guidiguidi/RateMonitorBC/internal/bestchange"
+	"github.com/guidiguidi/RateMonitorBC/internal/httpapi"
 	"github.com/guidiguidi/RateMonitorBC/internal/models"
 	"github.com/spf13/cobra"
 )
@@ -22,8 +28,19 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "bestchange",
+	Short: "A tool to find the best exchange rates and run a web server.",
+}
+
+var bestCmd = &cobra.Command{
+	Use:   "best",
 	Short: "Find the best exchange rate",
 	Run:   findBestRate,
+}
+
+var serveCmd = &cobra.Command{
+	Use:   "serve",
+	Short: "Run the web server",
+	Run:   runServer,
 }
 
 func main() {
@@ -35,14 +52,18 @@ func main() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.Flags().IntVar(&fromID, "from", 0, "From currency ID")
-	rootCmd.Flags().IntVar(&toID, "to", 0, "To currency ID")
-	rootCmd.Flags().Float64Var(&amount, "amount", 0, "Amount to exchange")
-	rootCmd.Flags().StringSliceVar(&marks, "marks", []string{}, "Required marks (comma-separated)")
 
-	rootCmd.MarkFlagRequired("from")
-	rootCmd.MarkFlagRequired("to")
-	rootCmd.MarkFlagRequired("amount")
+	bestCmd.Flags().IntVar(&fromID, "from", 0, "From currency ID")
+	bestCmd.Flags().IntVar(&toID, "to", 0, "To currency ID")
+	bestCmd.Flags().Float64Var(&amount, "amount", 0, "Amount to exchange")
+	bestCmd.Flags().StringSliceVar(&marks, "marks", []string{}, "Required marks (comma-separated)")
+
+	bestCmd.MarkFlagRequired("from")
+	bestCmd.MarkFlagRequired("to")
+	bestCmd.MarkFlagRequired("amount")
+
+	rootCmd.AddCommand(bestCmd)
+	rootCmd.AddCommand(serveCmd)
 }
 
 func initConfig() {
@@ -76,4 +97,66 @@ func findBestRate(cmd *cobra.Command, args []string) {
 	fmt.Printf("  Rate: %s\n", rate.Rate)
 	fmt.Printf("  To Amount: %s\n", rate.ToAmount)
 	fmt.Printf("  Marks: %s\n", strings.Join(rate.Marks, ", "))
+}
+
+func runServer(cmd *cobra.Command, args []string) {
+	cfg := config.Cfg
+
+	bcClient := bestchange.NewClient(cfg.BestChange.APIKey, cfg.BestChange.BaseURL, cfg.BestChange.RateLimit)
+	bcService := bestchange.NewService(bcClient)
+	h := httpapi.NewHandler(bcService)
+
+	r := gin.Default()
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
+	r.Static("/static", "./web/static")
+	r.StaticFile("/", "./web/index.html")
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	v1 := r.Group("/api/v1")
+	{
+		v1.POST("/best-rate", h.GetBestRate)
+	}
+
+	srv := &http.Server{
+		Addr:         ":" + cfg.Server.Port,
+		Handler:      r,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+	}
+
+	go func() {
+		log.Printf("🚀 Server starting on :%s", cfg.Server.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("Server exiting")
 }

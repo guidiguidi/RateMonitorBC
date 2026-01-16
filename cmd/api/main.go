@@ -40,10 +40,8 @@ func main() {
 		c.Next()
 	})
 
-	r.Static("/web", "./web")
-	r.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/web/index.html")
-	})
+	r.Static("/static", "./web/static")
+	r.StaticFile("/", "./web/index.html")
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

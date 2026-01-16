@@ -20,25 +20,24 @@ const elements = {
     successMessage: document.getElementById('successMessage')
 };
 
-// Initialize currency dropdowns
-function initializeCurrencies() {
-    const populateSelect = (selectElement) => {
-        DEMO_CURRENCIES.forEach(curr => {
-            const option = document.createElement('option');
-            option.value = curr.id;
-            option.textContent = `${curr.code} - ${curr.name}`;
-            selectElement.appendChild(option);
-        });
-    };
+        // Initialize currency dropdowns
+        function initializeCurrencies() {
+            const populateSelect = (selectElement) => {
+                DEMO_CURRENCIES.forEach(curr => {
+                    const option = document.createElement('option');
+                    option.value = curr.code; // Use code as value
+                    option.textContent = `${curr.name} (${curr.code})`; // Display name (code)
+                    selectElement.appendChild(option);
+                });
+            };
 
-    populateSelect(elements.fromCurrency);
-    populateSelect(elements.toCurrency);
+            populateSelect(elements.fromCurrency);
+            populateSelect(elements.toCurrency);
 
-    // Set default values
-    elements.fromCurrency.value = '1'; // BTC
-    elements.toCurrency.value = '3';   // USD
-}
-
+            // Set default values (using codes now)
+            elements.fromCurrency.value = 'BTC'; 
+            elements.toCurrency.value = 'USD';   
+        }
 // Get selected marks
 function getSelectedMarks() {
     const marks = [];
@@ -114,12 +113,12 @@ function createResultCard(rate, fromCode, toCode, amount) {
         async function searchRates(e) {
             e.preventDefault();
 
-            const fromId = elements.fromCurrency.value;
-            const toId = elements.toCurrency.value;
+            const fromCode = elements.fromCurrency.value;
+            const toCode = elements.toCurrency.value;
             const amount = elements.amount.value;
             const marks = getSelectedMarks();
 
-            if (!fromId || !toId) {
+            if (!fromCode || !toCode) {
                 showError('Please select both currencies');
                 return;
             }
@@ -135,13 +134,10 @@ function createResultCard(rate, fromCode, toCode, amount) {
             elements.resultsList.innerHTML = ''; // Clear previous results
 
             try {
-                const fromCurr = DEMO_CURRENCIES.find(c => c.id == fromId);
-                const toCurr = DEMO_CURRENCIES.find(c => c.id == toId);
-
                 const response = await fetch(`${API_BASE_URL}/v1/best-rate`, { // Updated endpoint
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ from_code: fromCurr.code, to_code: toCurr.code, amount: parseFloat(amount), marks })
+                    body: JSON.stringify({ from_code: fromCode, to_code: toCode, amount: parseFloat(amount), marks })
                 });
 
                 if (!response.ok) {
@@ -152,10 +148,10 @@ function createResultCard(rate, fromCode, toCode, amount) {
                 const result = await response.json();
                 console.log(result);
 
-                if (result.best_rate && fromCurr && toCurr) {
-                    elements.resultsList.innerHTML = createResultCard(result.best_rate, fromCurr.code, toCurr.code, amount);
+                if (result.best_rate) {
+                    elements.resultsList.innerHTML = createResultCard(result.best_rate, fromCode, toCode, amount);
                     elements.resultsSection.classList.add('show');
-                    showSuccess(`Found best rate for ${fromCurr.code} → ${toCurr.code}`);
+                    showSuccess(`Found best rate for ${fromCode} → ${toCode}`);
                 } else {
                     showError('No suitable rates found.');
                 }

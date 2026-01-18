@@ -11,73 +11,92 @@ import (
 )
 
 var (
-	ErrNoSuitableRates   = fmt.Errorf("no suitable rates found")
-	ErrCurrencyNotFound  = fmt.Errorf("currency not found")
+	ErrNoSuitableRates    = fmt.Errorf("no suitable rates found")
+	ErrCurrencyNotFound   = fmt.Errorf("currency not found")
+	ErrInvalidAmount      = fmt.Errorf("invalid amount")
+	ErrServiceUnavailable = fmt.Errorf("service unavailable")
 )
 
 type Service struct {
-	client     *Client
-	currencies []models.Currency
+    client       *Client
+    currencies   []models.Currency
+    currencyByID map[int]*models.Currency
 }
 
 func NewService(client *Client, currencyFile string) (*Service, error) {
-	currencies, err := collectors.GetCurrencies(currencyFile)
-	if err != nil {
-		return nil, fmt.Errorf("could not load currencies: %w", err)
-	}
-	return &Service{
-		client:     client,
-		currencies: currencies,
-	}, nil
+    currencies, err := collectors.GetCurrencies(currencyFile)
+    if err != nil {
+        return nil, fmt.Errorf("could not load currencies: %w", err)
+    }
+
+    currencyByID := make(map[int]*models.Currency)
+    for i := range currencies {
+        c := currencies[i]
+        currencyByID[c.ID] = &c
+    }
+
+    return &Service{
+        client:       client,
+        currencies:   currencies,
+        currencyByID: currencyByID,
+    }, nil
 }
+
 
 func (s *Service) GetBestRate(ctx context.Context, req *models.BestRateRequest) (*models.BestRateResponse, error) {
-	fromCurrency := collectors.FindByCode(s.currencies, req.FromCode)
-	if fromCurrency == nil {
-		return nil, fmt.Errorf("%w: %s", ErrCurrencyNotFound, req.FromCode)
-	}
+    fromCurrency, ok := s.currencyByID[req.FromID]
+    if !ok {
+        return nil, fmt.Errorf("%w: %d", ErrCurrencyNotFound, req.FromID)
+    }
 
-	toCurrency := collectors.FindByCode(s.currencies, req.ToCode)
-	if toCurrency == nil {
-		return nil, fmt.Errorf("%w: %s", ErrCurrencyNotFound, req.ToCode)
-	}
+    toCurrency, ok := s.currencyByID[req.ToID]
+    if !ok {
+        return nil, fmt.Errorf("%w: %d", ErrCurrencyNotFound, req.ToID)
+    }
 
-	ratesResponse, err := s.client.GetRates(ctx, fromCurrency.ID, toCurrency.ID)
-	if err != nil {
-		return nil, fmt.Errorf("get rates: %w", err)
-	}
+    if req.Amount <= 0 {
+        return nil, fmt.Errorf("%w: amount must be positive", ErrInvalidAmount)
+    }
 
-	key := fmt.Sprintf("%d-%d", fromCurrency.ID, toCurrency.ID)
-	rates, ok := ratesResponse.Rates[key]
-	if !ok || len(rates) == 0 {
-		return nil, ErrNoSuitableRates
-	}
+    ratesResponse, err := s.client.GetRates(ctx, fromCurrency.ID, toCurrency.ID)
+    if err != nil {
+        return nil, fmt.Errorf("get rates: %w", err)
+    }
 
-	filteredRates := s.filterRates(rates, req.Amount, req.Marks)
-	if len(filteredRates) == 0 {
-		return nil, ErrNoSuitableRates
-	}
+    key := fmt.Sprintf("%d-%d", fromCurrency.ID, toCurrency.ID)
+    rates, ok := ratesResponse.Rates[key]
+    if !ok || len(rates) == 0 {
+        return nil, ErrNoSuitableRates
+    }
 
-	bestRate := s.findBestRate(filteredRates)
+    filteredRates := s.filterRates(rates, req.Amount, req.Marks)
+    if len(filteredRates) == 0 {
+        return nil, ErrNoSuitableRates
+    }
 
-	fromAmount := fmt.Sprintf("%.8f", req.Amount)
-	rateValue, _ := strconv.ParseFloat(bestRate.Rate, 64)
-	toAmount := fmt.Sprintf("%.8f", req.Amount*rateValue)
-	bestRate.FromAmount = fromAmount
-	bestRate.ToAmount = toAmount
+    bestRate := s.findBestRate(filteredRates)
 
-	return &models.BestRateResponse{
-		FromID:   fromCurrency.ID,
-		ToID:     toCurrency.ID,
-		Amount:   req.Amount,
-		Marks:    req.Marks,
-		BestRate: bestRate,
-		Source:   "bestchange",
-	}, nil
+    fromAmount := fmt.Sprintf("%.8f", req.Amount)
+    rateValue, _ := strconv.ParseFloat(bestRate.Rate, 64)
+    toAmount := fmt.Sprintf("%.8f", req.Amount*rateValue)
+
+    bestRate.FromAmount = fromAmount
+    bestRate.ToAmount = toAmount
+
+    return &models.BestRateResponse{
+        FromID:   fromCurrency.ID,
+        ToID:     toCurrency.ID,
+        Amount:   req.Amount,
+        Marks:    req.Marks,
+        BestRate: &bestRate,
+        Source:   "bestchange",
+    }, nil
 }
+
 
 func (s *Service) filterRates(rates []models.Rate, amount float64, marks []string) []models.Rate {
 	var filtered []models.Rate
+
 	for _, rate := range rates {
 		inMin, err := strconv.ParseFloat(rate.InMin, 64)
 		if err != nil {
@@ -93,6 +112,7 @@ func (s *Service) filterRates(rates []models.Rate, amount float64, marks []strin
 			if err != nil {
 				continue
 			}
+
 			if amount > inMax {
 				continue
 			}
@@ -104,6 +124,7 @@ func (s *Service) filterRates(rates []models.Rate, amount float64, marks []strin
 
 		filtered = append(filtered, rate)
 	}
+
 	return filtered
 }
 
@@ -122,6 +143,7 @@ func (s *Service) hasAllMarks(rateMarks, requiredMarks []string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 

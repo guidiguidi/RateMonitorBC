@@ -1,9 +1,11 @@
 package bestchange
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -51,10 +53,23 @@ func (c *Client) GetRates(ctx context.Context, fromID, toID int) (*models.RatesR
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
+	var reader io.ReadCloser
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("gzip reader: %w", err)
+		}
+		defer reader.Close()
+	default:
+		reader = resp.Body
+	}
+
 	var ratesResponse models.RatesResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ratesResponse); err != nil {
+	if err := json.NewDecoder(reader).Decode(&ratesResponse); err != nil {
 		return nil, fmt.Errorf("json decode: %w", err)
 	}
 
 	return &ratesResponse, nil
 }
+

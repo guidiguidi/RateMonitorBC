@@ -21,17 +21,30 @@ func LoadJSONFromFile(filePath string, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
 
-func GetCurrencies(filePath string) ([]models.Currency, error) {
-	var currencies []models.Currency
-	if err := LoadJSONFromFile(filePath, &currencies); err != nil {
-		return nil, err
-	}
-	return currencies, nil
+type CurrenciesResponse struct {
+	Currencies []models.Currency `json:"currencies"`
 }
 
-func FindByCode(currencies []models.Currency, code string) *models.Currency {
+func GetCurrencies(filePath string) ([]models.Currency, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	var resp CurrenciesResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Currencies, nil
+}
+
+func FindByName(currencies []models.Currency, name string) *models.Currency {
 	for i := range currencies {
-		if currencies[i].Code == code {
+		if currencies[i].Name == name {
 			return &currencies[i]
 		}
 	}

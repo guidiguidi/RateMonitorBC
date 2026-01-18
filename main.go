@@ -11,6 +11,10 @@ import (
 )
 
 func main() {
+	if err := config.Load(); err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
 	// Initialize BestChange service
 	client := bestchange.NewClient(
         config.Cfg.BestChange.APIKey,
